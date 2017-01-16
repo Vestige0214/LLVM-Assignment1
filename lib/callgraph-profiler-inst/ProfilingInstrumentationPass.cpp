@@ -1,7 +1,6 @@
 
-
+#include "llvm/IR/Module.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -35,10 +34,29 @@ createConstantString(llvm::Module& m, llvm::StringRef str) {
   return llvm::ConstantExpr::getInBoundsGetElementPtr(arrayTy, asStr, indices);
 }
 
+void
+handleIntruction(llvm::CallSite cs){
+  if (!cs.getInstruction()){
+    return;
+  }
+  auto called = cs.getCalledValue()->stripPointerCasts();
+  auto calledFunction = llvm::dyn_cast<llvm::Function>(called);
+  if (!calledFunction){
+    return;
+  }
+}
 
 bool
 ProfilingInstrumentationPass::runOnModule(llvm::Module& m) {
-  // This is the entry point of your instrumentation pass.
+  for (auto &f : m){
+    for (auto &b : f){
+      for (auto &i : b){
+        handleIntruction(&i);
+      }
+    }
+  }
   return true;
 }
+
+
 
