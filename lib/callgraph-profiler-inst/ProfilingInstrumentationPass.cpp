@@ -96,6 +96,12 @@ createFunctionTable(Module& m, uint64_t numFunctions) {
                      "CaLlCoUnTeR_functionInfo");
 }
 
+//Create the CallCounter_Print function
+// static void
+// getOrInsertFunction(Module& m, String name, Type* type) {
+//   auto* printer = m.getOrInsertFunction("CallCounter_Print", voidTy, nullptr);
+  
+// }
 
 // For an analysis pass, runOnModule should perform the actual analysis and
 // compute the results. The actual output, however, is produced separately.
@@ -128,12 +134,12 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
   // Install the result printing function so that it prints out the counts after
   // the entire program is finished executing.
   auto* voidTy  = Type::getVoidTy(context);
-  auto* printer = m.getOrInsertFunction("CaLlCoUnTeR_print", voidTy, nullptr);
+  auto* printer = m.getOrInsertFunction("CaLlCoUnTeR_Print", voidTy, nullptr);
   appendToGlobalDtors(m, llvm::cast<Function>(printer), 0);
 
   // Declare the counter function
   auto* helperTy = FunctionType::get(voidTy, int64Ty, false);
-  auto* counter  = m.getOrInsertFunction("CaLlCoUnTeR_called", helperTy);
+  auto* counter  = m.getOrInsertFunction("CaLlCoUnTeR_Call", helperTy);
 
   for (auto f : toCount) {
     // We only want to instrument internally defined functions.
@@ -158,6 +164,7 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
 
 void
 ProfilingInstrumentationPass::handleCalledFunction(Function& f, Value* counter) {
+  //Count is added to first insertion point
   IRBuilder<> builder(&*f.getEntryBlock().getFirstInsertionPt());
   builder.CreateCall(counter, builder.getInt64(ids[&f]));
 }

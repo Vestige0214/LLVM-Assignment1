@@ -12,7 +12,7 @@
 #   make clean
 #
 
-LLVM_BIN     := /usr/shared/CMPT/wsumner/llvm/bin
+LLVM_BIN     := /home/patterson/Downloads/clang+llvm-3.9.1-x86_64-linux-gnu-ubuntu-16.04/bin
 PROFILER     := ../../cgbuild/bin/callgraph-profiler
 CSV_TO_GV    := ../scripts/csv_to_gv.py
 CLANG        := $(LLVM_BIN)/clang
