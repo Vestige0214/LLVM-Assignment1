@@ -115,31 +115,31 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
     toCount.push_back(&f);
   }
 
-  ids                     = computeFunctionIDs(toCount);
-  internal                = computeInternal(toCount);
+  ids = computeFunctionIDs(toCount);
+  internal = computeInternal(toCount);
   auto const numFunctions = toCount.size();
 
   // Store the number of functions into an externally visible variable.
-  auto* int64Ty            = Type::getInt64Ty(context);
+  auto* int64Ty = Type::getInt64Ty(context);
   auto* numFunctionsGlobal = ConstantInt::get(int64Ty, numFunctions, false);
   new GlobalVariable(m,
                      int64Ty,
                      true,
                      GlobalValue::ExternalLinkage,
                      numFunctionsGlobal,
-                     "CaLlCoUnTeR_numFunctions");
+                     "CaLlCoUnTeR_print");
 
   createFunctionTable(m, numFunctions);
 
   // Install the result printing function so that it prints out the counts after
   // the entire program is finished executing.
   auto* voidTy  = Type::getVoidTy(context);
-  auto* printer = m.getOrInsertFunction("CaLlCoUnTeR_Print", voidTy, nullptr);
+  auto* printer = m.getOrInsertFunction("CaLlCoUnTeR_print", voidTy, nullptr);
   appendToGlobalDtors(m, llvm::cast<Function>(printer), 0);
 
   // Declare the counter function
   auto* helperTy = FunctionType::get(voidTy, int64Ty, false);
-  auto* counter  = m.getOrInsertFunction("CaLlCoUnTeR_Call", helperTy);
+  auto* counter  = m.getOrInsertFunction("CaLlCoUnTeR_called", helperTy);
 
   for (auto f : toCount) {
     // We only want to instrument internally defined functions.
