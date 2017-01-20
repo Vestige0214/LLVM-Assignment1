@@ -1,6 +1,7 @@
-
+#include <cstdio>
 
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -31,7 +32,6 @@ computeFunctionIDs(llvm::ArrayRef<Function*> functions) {
 
   return idMap;
 }
-
 
 // Returns a set of all internal (defined) functions.
 static DenseSet<Function*>
@@ -93,18 +93,9 @@ createFunctionTable(Module& m, uint64_t numFunctions) {
                      false,
                      GlobalValue::ExternalLinkage,
                      functionTable,
-                     "CaLlCoUnTeR_functionInfo");
+                     "LLVMAnalysis_functionInfo");
 }
 
-//Create the CallCounter_Print function
-// static void
-// getOrInsertFunction(Module& m, String name, Type* type) {
-//   auto* printer = m.getOrInsertFunction("CallCounter_Print", voidTy, nullptr);
-  
-// }
-
-// For an analysis pass, runOnModule should perform the actual analysis and
-// compute the results. The actual output, however, is produced separately.
 bool
 ProfilingInstrumentationPass::runOnModule(Module& m) {
   auto& context = m.getContext();
@@ -127,19 +118,28 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
                      true,
                      GlobalValue::ExternalLinkage,
                      numFunctionsGlobal,
-                     "CaLlCoUnTeR_print");
+                     "LLVMAnalysis_numberOfFunctions");
 
   createFunctionTable(m, numFunctions);
 
   // Install the result printing function so that it prints out the counts after
   // the entire program is finished executing.
   auto* voidTy  = Type::getVoidTy(context);
-  auto* printer = m.getOrInsertFunction("CaLlCoUnTeR_print", voidTy, nullptr);
+  auto* printer = m.getOrInsertFunction("LLVMAnalysis_printNumOfRuns", voidTy, nullptr);
   appendToGlobalDtors(m, llvm::cast<Function>(printer), 0);
 
   // Declare the counter function
   auto* helperTy = FunctionType::get(voidTy, int64Ty, false);
-  auto* counter  = m.getOrInsertFunction("CaLlCoUnTeR_called", helperTy);
+  auto* counter  = m.getOrInsertFunction("LLVMAnalysis_functionCalled", helperTy);
+
+  std::vector<llvm::Type*> params;
+  params.push_back(Type::getInt64Ty(context));
+  params.push_back(Type::getInt64Ty(context));
+  ArrayRef<llvm::Type*> paramRef = params;
+  auto* lineNumHelperTy = FunctionType::get(voidTy, paramRef, false);
+  
+  auto* lineNumFunc = m.getOrInsertFunction("LLVMAnalysis_setLineNum", lineNumHelperTy, nullptr);
+
 
   for (auto f : toCount) {
     // We only want to instrument internally defined functions.
@@ -153,7 +153,7 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
     // Count each external function as it is called.
     for (auto& bb : *f) {
       for (auto& i : bb) {
-        handleInstruction(CallSite(&i), counter);
+        handleInstruction(CallSite(&i), counter, lineNumFunc);
       }
     }
   }
@@ -171,10 +171,18 @@ ProfilingInstrumentationPass::handleCalledFunction(Function& f, Value* counter) 
 
 
 void
-ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter) {
+ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter, Value* lineNumFunc) {
+  auto& context = cs->getContext();
   // Check whether the instruction is actually a call
   if (!cs.getInstruction()) {
     return;
+  }
+
+  uint64_t lineNum;
+
+  if (DebugLoc Loc = cs.getInstruction()->getDebugLoc()){
+    lineNum = Loc.getLine();
+    // StringRef fileName = Loc.getFilename();
   }
 
   // Check whether the called function is directly invoked
@@ -187,6 +195,15 @@ ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter) {
   if (internal.count(called) || !ids.count(called)) {
     // Internal functions are counted upon the entry of each function body.
     // Blacklisted functions are not counted. Neither should proceed.
+    std::vector<Value*> params;
+    auto* helperTy = Type::getInt64Ty(context);
+    params.push_back(llvm::ConstantInt::get(helperTy, ids[called]));
+    params.push_back(llvm::ConstantInt::get(helperTy, lineNum));
+    ArrayRef<Value*> paramRef = params;
+    IRBuilder<> builder2(cs.getInstruction());
+    builder2.CreateCall(lineNumFunc, paramRef);
+    // IRBuilder<> builder3(cs.getInstruction());
+    // builder3.CreateCall(fileNameFunc, builder3.getInt8PtrTy(fileName));
     return;
   }
 

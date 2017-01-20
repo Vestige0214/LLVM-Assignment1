@@ -304,7 +304,7 @@ main(int argc, char** argv) {
     err.print(argv[0], errs());
     return -1;
   }
-
+  
   prepareLinkingPaths(StringRef(argv[0]));
   instrumentForDynamicCount(*module);
 

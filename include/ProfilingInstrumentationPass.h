@@ -26,7 +26,7 @@ struct ProfilingInstrumentationPass : public llvm::ModulePass {
   bool runOnModule(llvm::Module& m) override;
 
   void handleCalledFunction(llvm::Function& f, llvm::Value* counter);
-  void handleInstruction(llvm::CallSite cs, llvm::Value* counter);
+  void handleInstruction(llvm::CallSite cs, llvm::Value* counter, llvm::Value* lineNumFunc);
 };
 
 
