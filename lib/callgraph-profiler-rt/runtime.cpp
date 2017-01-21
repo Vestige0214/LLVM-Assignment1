@@ -44,7 +44,7 @@ void
 CCOUNT(printNumOfRuns)() {
   for (size_t id = 0; id < CCOUNT(numberOfFunctions); ++id) {
     auto& info = CCOUNT(functionInfo)[id];
-    printf("%s, %llu, %llu\n", info.name, info.lineNum, info.count);
+    printf("Name: %s LineNumber: %lu Count: %lu\n", info.name, info.lineNum, info.count);
   }
 }
 }

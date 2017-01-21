@@ -1,7 +1,8 @@
 #include <cstdio>
 
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/ADT/ArrayRef.h"
+#include "llvm/IR/CallSite.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -11,6 +12,7 @@
 using namespace llvm;
 using cgprofiler::ProfilingInstrumentationPass;
 
+#define DEBUG_TYPE = "ProfilingInstrumentationPass";
 
 namespace cgprofiler {
 
@@ -72,7 +74,7 @@ createFunctionTable(Module& m, uint64_t numFunctions) {
   // Create the component types of the table
   auto* int64Ty    = Type::getInt64Ty(context);
   auto* stringTy   = Type::getInt8PtrTy(context);
-  Type* fieldTys[] = {stringTy, int64Ty};
+  Type* fieldTys[] = {stringTy, int64Ty, int64Ty};
   auto* structTy   = StructType::get(context, fieldTys, false);
   auto* tableTy    = ArrayType::get(structTy, numFunctions);
   auto* zero       = ConstantInt::get(int64Ty, 0, false);
@@ -97,7 +99,7 @@ createFunctionTable(Module& m, uint64_t numFunctions) {
 }
 
 bool
-ProfilingInstrumentationPass::runOnModule(Module& m) {
+ProfilingInstrumentationPass::runOnModule(llvm::Module& m) {
   auto& context = m.getContext();
 
   // First identify the functions we wish to track
@@ -128,17 +130,18 @@ ProfilingInstrumentationPass::runOnModule(Module& m) {
   auto* printer = m.getOrInsertFunction("LLVMAnalysis_printNumOfRuns", voidTy, nullptr);
   appendToGlobalDtors(m, llvm::cast<Function>(printer), 0);
 
-  // Declare the counter function
+
+
+  
+
+    // Declare the counter function
   auto* helperTy = FunctionType::get(voidTy, int64Ty, false);
   auto* counter  = m.getOrInsertFunction("LLVMAnalysis_functionCalled", helperTy);
 
-  std::vector<llvm::Type*> params;
-  params.push_back(Type::getInt64Ty(context));
-  params.push_back(Type::getInt64Ty(context));
-  ArrayRef<llvm::Type*> paramRef = params;
+  //Declare the set Line Number function
+  llvm::Type* paramRef[] = {Type::getInt64Ty(context), Type::getInt64Ty(context)};
   auto* lineNumHelperTy = FunctionType::get(voidTy, paramRef, false);
-  
-  auto* lineNumFunc = m.getOrInsertFunction("LLVMAnalysis_setLineNum", lineNumHelperTy, nullptr);
+  auto* lineNumFunc = m.getOrInsertFunction("LLVMAnalysis_setLineNum", lineNumHelperTy);
 
 
   for (auto f : toCount) {
@@ -172,16 +175,19 @@ ProfilingInstrumentationPass::handleCalledFunction(Function& f, Value* counter) 
 
 void
 ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter, Value* lineNumFunc) {
-  auto& context = cs->getContext();
+  // auto& context = cs->getContext();
   // Check whether the instruction is actually a call
   if (!cs.getInstruction()) {
     return;
   }
+  uint64_t lineNum = 0;
 
-  uint64_t lineNum;
-
-  if (DebugLoc Loc = cs.getInstruction()->getDebugLoc()){
-    lineNum = Loc.getLine();
+  if (const Instruction *inst = dyn_cast<Instruction>(cs.getInstruction())){
+    MDNode *N = inst->getMetadata("dbg");
+    DebugLoc Loc = DebugLoc(N);
+    if (Loc){
+      lineNum = 99;
+    }
     // StringRef fileName = Loc.getFilename();
   }
 
@@ -191,19 +197,14 @@ ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter, Val
     return;
   }
 
+  IRBuilder<> builder2(cs.getInstruction());
+  llvm::Value* paramRef[] = {builder2.getInt64(ids[called]), builder2.getInt64(lineNum)};
+  builder2.CreateCall(lineNumFunc, paramRef);
+
   // Check if the function is internal or blacklisted.
   if (internal.count(called) || !ids.count(called)) {
     // Internal functions are counted upon the entry of each function body.
     // Blacklisted functions are not counted. Neither should proceed.
-    std::vector<Value*> params;
-    auto* helperTy = Type::getInt64Ty(context);
-    params.push_back(llvm::ConstantInt::get(helperTy, ids[called]));
-    params.push_back(llvm::ConstantInt::get(helperTy, lineNum));
-    ArrayRef<Value*> paramRef = params;
-    IRBuilder<> builder2(cs.getInstruction());
-    builder2.CreateCall(lineNumFunc, paramRef);
-    // IRBuilder<> builder3(cs.getInstruction());
-    // builder3.CreateCall(fileNameFunc, builder3.getInt8PtrTy(fileName));
     return;
   }
 
