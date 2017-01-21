@@ -182,12 +182,8 @@ ProfilingInstrumentationPass::handleInstruction(CallSite cs, Value* counter, Val
   }
   uint64_t lineNum = 0;
 
-  if (const Instruction *inst = dyn_cast<Instruction>(cs.getInstruction())){
-    MDNode *N = inst->getMetadata("dbg");
-    DebugLoc Loc = DebugLoc(N);
-    if (Loc){
-      lineNum = 99;
-    }
+  if (DILocation *Loc = cs.getInstruction()->getDebugLoc()){
+    lineNum = Loc->getLine();
     // StringRef fileName = Loc.getFilename();
   }
 
